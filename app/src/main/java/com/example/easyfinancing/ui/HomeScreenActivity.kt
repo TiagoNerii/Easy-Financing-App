@@ -1,18 +1,36 @@
 package com.example.easyfinancing.ui
 
+import android.app.Dialog
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.LinearSnapHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.example.easyfinancing.R
+import com.example.easyfinancing.database.AppDatabase
+import com.example.easyfinancing.database.daos.MovimetationDao
 import com.example.easyfinancing.ui.adapters.extract.AdapterCombinedEx
 import com.example.easyfinancing.ui.adapters.home_screen.AdapaterCombinedHs
 import com.example.easyfinancing.ui.models.extract.MovDate
 import com.example.easyfinancing.ui.models.extract.Movimentation
 import com.example.easyfinancing.ui.models.home_screen.Page1
 import com.example.easyfinancing.ui.models.home_screen.Page2
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.util.Date
+import java.util.Locale
 
 class HomeScreenActivity : AppCompatActivity() {
     private lateinit var recyclerView_HomeScreen_Resumos: RecyclerView
@@ -20,9 +38,20 @@ class HomeScreenActivity : AppCompatActivity() {
     private val orcamentos = Orcamentos()
     private val faturas = Faturas()
 
+    lateinit var dataBase : AppDatabase
+    lateinit var addMovimentation : MovimetationDao
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home_screen)
+
+        setButtonStartActivityExtract()
+        setButtonStartActivityNewMovimentation()
+        setButtonStartActivityCategories()
+
+        findViewById<ImageButton>(R.id.menu).setOnClickListener {
+            openMenuPopUp()
+        }
 
         setPeriodo("MAI 2024")
         setSaldoDisponivel("R$ 0,00")
@@ -35,19 +64,78 @@ class HomeScreenActivity : AppCompatActivity() {
 
         setEntradas("0,00")
         setSaidas("0,00")
+    }
 
-        recyclerViewHSmovimentation = findViewById(R.id.HSmovimentation)
+    override fun onResume() {
+        super.onResume()
+
         val movimentacoes : MutableList<Any> = mutableListOf()
 
-        for(i in 1..10){
-            setNovaMovimentacao(arrayOf("Domingo, 19 mai 2024", "E", "Teste", "Teste", "R$ 0,00", "0"), movimentacoes)
-        }
-        for(i in 1..10){
-            setNovaMovimentacao(arrayOf("Segunda, 20 mai 2024", "S", "Teste", "Teste", "R$ 0,00", "1"), movimentacoes)
+        this.dataBase = AppDatabase.getInstance(this)
+        this.addMovimentation = dataBase.movimentationDao()
+
+        recyclerViewHSmovimentation = findViewById(R.id.HSmovimentation)
+
+        CoroutineScope(Dispatchers.Main).launch {
+            for (mov in addMovimentation.getMovs().toTypedArray()){
+                setNovaMovimentacao(
+                    Movimentation(mov.id, LocalDate.parse(mov.data), mov.tipo, mov.descricao, mov.categoriaId, mov.valor, mov.cartaoId, mov.cartaoParcelas, mov.recorrencia, mov.orcamentoId),
+                    movimentacoes
+                )
+            }
+            recyclerViewExtrato(movimentacoes)
         }
 
-        recyclerViewExtrato(movimentacoes)
+    }
 
+    private fun openMenuPopUp(){
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_main_menu, null)
+        val dialog = Dialog(this)
+
+        view.findViewById<ImageButton>(R.id.extract_side_menu_inner).setOnClickListener {
+            dialog.dismiss()
+            startActivity(Intent(this, ExtractActivity::class.java))
+        }
+
+        view.findViewById<ImageButton>(R.id.budget_side_menu_inner).setOnClickListener {
+            dialog.dismiss()
+            startActivity(Intent(this, BudgetsActivity::class.java))
+        }
+
+        view.findViewById<ImageButton>(R.id.card_side_menu_inner).setOnClickListener {
+            dialog.dismiss()
+            startActivity(Intent(this, CardActivity::class.java))
+        }
+
+        view.findViewById<ImageButton>(R.id.categories_side_menu_inner).setOnClickListener {
+            dialog.dismiss()
+            startActivity(Intent(this, CategoriesActivity::class.java))
+        }
+
+        dialog.setContentView(view)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.show()
+    }
+
+    private fun setButtonStartActivityExtract(){
+        findViewById<LinearLayout>(R.id.extract_content).setOnClickListener{
+            val EXTRATO = Intent(this, ExtractActivity::class.java)
+            startActivity(EXTRATO)
+        }
+    }
+
+    private fun setButtonStartActivityNewMovimentation(){
+        findViewById<ImageButton>(R.id.addMov).setOnClickListener{
+            val NEW_MOV = Intent(this, NewMovActivity::class.java)
+            startActivity(NEW_MOV)
+        }
+    }
+
+    private fun setButtonStartActivityCategories(){
+        findViewById<ConstraintLayout>(R.id.category_resume).setOnClickListener{
+            val CATEGORIES = Intent(this, CategoriesActivity::class.java)
+            startActivity(CATEGORIES)
+        }
     }
 
     fun setPeriodo(periodo : String){
@@ -120,48 +208,21 @@ class HomeScreenActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.outcome_value).text = valor
     }
 
-    fun setNovaMovimentacao(novaMov : Array<String>, listMov : MutableList<Any>){
-        fun icon_type(tipo : String) : Int{
-            if(tipo == "E"){
-                return R.drawable.arrow_drop_up
-            }
-            return R.drawable.arrow_drop_down
-        }
+    fun setNovaMovimentacao(novaMov : Movimentation, listMov : MutableList<Any>){
 
         if(listMov.isEmpty()){
-            listMov.add(MovDate(novaMov[0]))
-            listMov.add(Movimentation(
-                novaMov[5].toInt(),
-                novaMov[0],
-                icon_type(novaMov[1]),
-                novaMov[2],
-                novaMov[3],
-                novaMov[4]
-            ))
+            listMov.add(MovDate(novaMov.date.toString()))
+            listMov.add(novaMov)
         }else{
 
             val lastItem = listMov.last()
 
-            if(lastItem is Movimentation && lastItem.date == novaMov[0]){
-                listMov.add(Movimentation(
-                    novaMov[5].toInt(),
-                    novaMov[0],
-                    icon_type(novaMov[1]),
-                    novaMov[2],
-                    novaMov[3],
-                    novaMov[4]
-                ))
+            if(lastItem is Movimentation && lastItem.date == novaMov.date){
+                listMov.add(novaMov)
             }
             else{
-                listMov.add(MovDate(novaMov[0]))
-                listMov.add(Movimentation(
-                    novaMov[5].toInt(),
-                    novaMov[0],
-                    icon_type(novaMov[1]),
-                    novaMov[2],
-                    novaMov[3],
-                    novaMov[4]
-                ))
+                listMov.add(MovDate(novaMov.date.toString()))
+                listMov.add(novaMov)
             }
         }
     }
@@ -169,7 +230,9 @@ class HomeScreenActivity : AppCompatActivity() {
     fun recyclerViewExtrato(list : MutableList<Any>){
         recyclerViewHSmovimentation.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
         recyclerViewHSmovimentation.setHasFixedSize(true)
-        val combinedAdapterExtract = AdapterCombinedEx(this, list)
+        val combinedAdapterExtract = AdapterCombinedEx(this, list){
+            startActivity(Intent(this, ExtractActivity::class.java))
+        }
         recyclerViewHSmovimentation.adapter = combinedAdapterExtract
     }
 }
