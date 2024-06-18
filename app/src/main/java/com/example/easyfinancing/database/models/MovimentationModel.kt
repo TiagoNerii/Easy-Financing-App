@@ -2,7 +2,6 @@ package com.example.easyfinancing.database.models
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import java.util.Date
 
 @Entity
 data class MovimentationModel (
@@ -13,7 +12,9 @@ data class MovimentationModel (
     val valor : String,
     val recorrencia : Int,
     val cartaoId : Int,
+    val cartoParcela : Int,
     val cartaoParcelas : Int,
+    val codigoParcelamento : String,
     val orcamentoId : Int
 ){
     @PrimaryKey(autoGenerate = true)

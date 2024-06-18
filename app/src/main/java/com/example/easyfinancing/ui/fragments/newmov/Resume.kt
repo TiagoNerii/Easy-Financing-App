@@ -16,7 +16,11 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.easyfinancing.R
 import com.example.easyfinancing.database.AppDatabase
+import com.example.easyfinancing.database.daos.BudgetsDAO
+import com.example.easyfinancing.database.daos.CardDao
 import com.example.easyfinancing.database.daos.CategoryDao
+import com.example.easyfinancing.database.models.BudgetsModel
+import com.example.easyfinancing.database.models.CardModel
 import com.example.easyfinancing.ui.adapters.dialogs.DialogBudgetAdapter
 import com.example.easyfinancing.ui.adapters.dialogs.DialogCardAdapter
 import com.example.easyfinancing.ui.adapters.dialogs.DialogCategoryAdapter
@@ -33,7 +37,7 @@ class Resume : Fragment() {
     val viewModel: NewMovViewModel by activityViewModels()
 
     lateinit var categories : List<Category>
-    lateinit var budgets : MutableList<Budget>
+    lateinit var budgets : MutableList<BudgetsModel>
     lateinit var cards : MutableList<CardBill>
 
     var recurenceIndex = 0
@@ -41,12 +45,16 @@ class Resume : Fragment() {
 
     lateinit var dataBase : AppDatabase
     lateinit var categoryDao : CategoryDao
+    lateinit var budgetDao : BudgetsDAO
+    lateinit var cardDao : CardDao
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         this.dataBase = AppDatabase.getInstance(requireContext())
         this.categoryDao = dataBase.categoryDao()
+        this.cardDao = dataBase.cardDao()
+        this.budgetDao = dataBase.budgetsDao()
 
         CoroutineScope(Dispatchers.IO).launch {
             val DB_Categories = categoryDao.getAllCategories()
@@ -60,19 +68,29 @@ class Resume : Fragment() {
             categories = CategoriesQueryResult
         }
 
-        budgets = mutableListOf(
-            Budget(1, "Lazer", "0,00"),
-            Budget(2, "Combustivel", "0,00"),
-            Budget(3, "Gás", "0,00"),
-            Budget(4, "Investimentos", "0,00")
-        )
+        CoroutineScope(Dispatchers.IO).launch {
+            val DB_Budgets = budgetDao.findAll()
 
-        cards = mutableListOf(
-            CardBill(1, "Inter", "00"),
-            CardBill(2, "Nubank", "00"),
-            CardBill(3, "Santander", "00"),
-            CardBill(4, "Itaú", "00")
-        )
+            val BudgetQueryResult : MutableList<BudgetsModel> = mutableListOf()
+
+            for (budget in DB_Budgets){
+                BudgetQueryResult.add(BudgetsModel(budget.idBudgetsModel, budget.nameBudgets, budget.valueBudgets))
+            }
+
+            budgets = BudgetQueryResult
+        }
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val DB_Cards = cardDao.getAllCard()
+
+            val CardsQueryResult : MutableList<CardBill> = mutableListOf()
+
+            for (card in DB_Cards){
+                CardsQueryResult.add(CardBill(card.id, card.nickname, card.dueDate))
+            }
+
+            cards = CardsQueryResult
+        }
     }
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val view = inflater.inflate(R.layout.fragment_new_mov_resume, container, false)
@@ -102,8 +120,8 @@ class Resume : Fragment() {
 
         if (viewModel.movBudgetId != 0){
             for(i in 0 until budgets.size){
-                if (budgets[i].id == viewModel.movBudgetId){
-                    view.findViewById<TextView>(R.id.text_budget_selection).setText(budgets[i].name)
+                if (budgets[i].idBudgetsModel?.toInt() == viewModel.movBudgetId){
+                    view.findViewById<TextView>(R.id.text_budget_selection).setText(budgets[i].nameBudgets)
                     view.findViewById<ImageButton>(R.id.budget_selection_inner).setColorFilter(ContextCompat.getColor(view.context, R.color.light_background))
                     view.findViewById<ImageButton>(R.id.budget_selection_inner).background = ContextCompat.getDrawable(view.context, R.drawable.round_background_blue)
                 }
@@ -207,11 +225,11 @@ class Resume : Fragment() {
             recyclerView.setHasFixedSize(true)
 
             val dialogAdapter = DialogBudgetAdapter(view.context, budgets){
-                view.findViewById<TextView>(R.id.text_budget_selection).setText(it.name)
+                view.findViewById<TextView>(R.id.text_budget_selection).setText(it.nameBudgets)
                 view.findViewById<ImageButton>(R.id.budget_selection_inner).setColorFilter(ContextCompat.getColor(view.context, R.color.light_background))
                 view.findViewById<ImageButton>(R.id.budget_selection_inner).background = ContextCompat.getDrawable(view.context, R.drawable.round_background_blue)
 
-                viewModel.movBudgetId = it.id
+                viewModel.movBudgetId = it.idBudgetsModel?.toInt()!!
 
                 dialog.dismiss()
             }

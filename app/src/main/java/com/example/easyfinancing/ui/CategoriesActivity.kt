@@ -3,6 +3,8 @@ package com.example.easyfinancing.ui
 import android.content.Intent
 import android.os.Bundle
 import android.widget.ImageButton
+import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -43,15 +45,19 @@ class CategoriesActivity : AppCompatActivity() {
             CoroutineScope(Dispatchers.IO).launch {
                 val DB_categories = categoryDao.getAllCategories()
 
-                for (i in 0 until DB_categories.size){
+                for (i in DB_categories.indices){
                     categories.add(
                         Category(DB_categories[i].id, DB_categories[i].icon, DB_categories[i].name, "R$ 0,00", 1)
                     )
                 }
             }
-        val categoryAdapter = CategoryAdapter(this, categories)
-        recyclerView.adapter = categoryAdapter
 
+        val categoryAdapter = CategoryAdapter(this, categories){entradas, saidas ->
+            findViewById<TextView>(R.id.income_total_value).text = entradas.toString()
+            findViewById<TextView>(R.id.outcome_total_value).text = saidas.toString()
+        }
+
+        recyclerView.adapter = categoryAdapter
     }
 
     private fun setButtonCallBack(){
